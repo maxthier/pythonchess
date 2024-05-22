@@ -38,6 +38,38 @@ class Game:
                 print("\033[m", end="")
             print(f" {8-y}")
         print("  A B C D E F G H")
+    
+    def move_piece(self, x: int, y: int, target_x: int, target_y: int) -> NoReturn:
+        """Move a piece to a new position"""
+        piece = self.get_piece_at(x, y)
+        self.__board[y][x] = None
+        self.__board[target_y][target_x] = piece
+        self.render_board()
+        self.__current_player = "black" if self.__current_player == "white" else "white"
+
+    def is_check(self, player: str) -> bool:
+        """Check if the specified player is in check"""
+        king_position = None
+        opponent_pieces = []
+        
+        # Find the king's position and collect opponent's pieces
+        for y in range(8):
+            for x in range(8):
+                piece = self.get_piece_at(x, y)
+                if piece is not None:
+                    if piece._team == player:
+                        if isinstance(piece, King):
+                            king_position = (x, y)
+                    else:
+                        opponent_pieces.append(piece)
+        
+        # Check if any opponent's piece can attack the king
+        for piece in opponent_pieces:
+            valid_moves = piece.get_valid_moves()
+            if king_position in valid_moves:
+                return True
+        
+        return False
 
     def create_board(self):
         """Create and return the initial chess board"""
