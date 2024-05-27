@@ -7,11 +7,13 @@ import re
 
 class Game:
     __board = None
-    __current_player = None
+    current_player = None
+    black_castling_kingside = black_castling_queenside = white_castling_kingside = white_castling_queenside = True
+
     def __init__(self):
         # Initialize the chess game
         self.__board = self.create_board()
-        self.__current_player = "white"
+        self.current_player = "white"
 
     def get_piece_at(self, x: int, y: int) -> 'Piece | None':
         """Return the piece at the specified x and y coordinates"""
@@ -21,6 +23,7 @@ class Game:
     def render_board(self, valid_moves: List[Tuple[int,int]] = []):
         """Render the board in the terminal with a checkboard pattern"""
         os.system('clear')  # Clear the terminal output
+        print("It's {}'s turn.".format(self.current_player))
         print("  A B C D E F G H")
         for y in range(8):
             print(f"{8-y} ", end="")
@@ -43,13 +46,75 @@ class Game:
             print(f" {8-y}")
         print("  A B C D E F G H")
     
-    def move_piece(self, x: int, y: int, target_x: int, target_y: int) -> NoReturn:
+    def move_piece(self, x: int, y: int, target_x: int, target_y: int):
         """Move a piece to a new position"""
         piece = self.get_piece_at(x, y)
         self.__board[y][x] = None
+        # add support for pawn promotion
+        if isinstance(piece, Pawn) and ((piece.team == "white" and target_y == 7) or (piece.team == "black" and target_y == 0)):
+            while True:
+                print("Which piece do you want to promote to? (q, r, b, n): ")
+                wish = get_key_press()
+                if re.match(r"^[qrbn]$", wish):
+                    break
+            match wish:
+                case "q":
+                    piece = Queen(self, piece.team, target_x, target_y)
+                case "r":
+                    piece = Rook(self, piece.team, target_x, target_y)
+                case "b":
+                    piece = Bishop(self, piece.team, target_x, target_y)
+                case "n":
+                    piece = Knight(self, piece.team, target_x, target_y)
+        # add support for castling
+        if isinstance(piece, King):
+            if piece.team == "white":
+                self.white_castling_queenside = self.white_castling_kingside = False
+                if target_x == 6 and x == 4:
+                    rook = self.get_piece_at(7, 0)
+                    if self.__board[0][5] is None and self.__board[0][6] is None:
+                        self.__board[0][7] = None
+                        self.__board[0][5] = rook
+                        rook.x = 5
+                        rook.y = 0
+                elif target_x == 2 and x == 4:
+                    rook = self.get_piece_at(0, 0)
+                    if self.__board[0][1] is None and self.__board[0][2] is None and self.__board[0][3] is None:
+                        self.__board[0][0] = None
+                        self.__board[0][3] = rook
+                        rook.x = 3
+                        rook.y = 0
+            elif piece.team == "black":
+                self.black_castling_queenside = self.black_castling_kingside = False
+                if target_x == 6 and x == 4:
+                    rook = self.get_piece_at(7, 7)
+                    if self.__board[7][5] is None and self.__board[7][6] is None:
+                        self.__board[7][7] = None
+                        self.__board[7][5] = rook
+                        rook.x = 5
+                        rook.y = 7
+                elif target_x == 2 and x == 4:
+                    rook = self.get_piece_at(0, 7)
+                    if self.__board[7][1] is None and self.__board[7][2] is None and self.__board[7][3] is None:
+                        self.__board[7][0] = None
+                        self.__board[7][3] = rook
+                        rook.x = 3
+                        rook.y = 7
+            # dissalow castling if rook gets moved or taken
+            if (piece.x == 0 and piece.y == 0) or (target_x == 0 and target_y == 0):
+                self.white_castling_queenside = False
+            elif (piece.x == 7 and piece.y == 0) or (target_x == 7 and target_y == 0):
+                self.white_castling_kingside = False
+            elif (piece.x == 0 and piece.y == 7) or (target_x == 0 and target_y == 7):
+                self.black_castling_queenside = False
+            elif (piece.x == 7 and piece.y == 7) or (target_x == 7 and target_y == 7):
+                self.black_castling_kingside = False
+
         self.__board[target_y][target_x] = piece
+        piece.x = target_x
+        piece.y = target_y
         self.render_board()
-        self.__current_player = "black" if self.__current_player == "white" else "white"
+        self.current_player = "black" if self.current_player == "white" else "white"
 
     def is_check(self, player: str) -> bool:
         """Check if the specified player is in check"""
@@ -85,6 +150,14 @@ class Game:
              [None, None, None, None, None, None, None, None],
              [Pawn(self, "black", 0, 6), Pawn(self, "black", 1, 6), Pawn(self, "black", 2, 6), Pawn(self, "black", 3, 6), Pawn(self, "black", 4, 6), Pawn(self, "black", 5, 6), Pawn(self, "black", 6, 6), Pawn(self, "black", 7, 6)],
              [Rook(self, "black", 0, 7), Knight(self, "black", 1, 7), Bishop(self, "black", 2, 7), Queen(self, "black", 3, 7), King(self, "black", 4, 7), Bishop(self, "black", 5, 7), Knight(self, "black", 6, 7), Rook(self, "black", 7, 7)]]
+        #self.__board = [[None, None, None, None, None, None, None, None],
+        #     [None, Pawn(self, "white", 1, 6), None, None, None, King(self, "Black", 5, 6), None, None],
+        #     [None, None, None, None, None, None, None, None],
+        #     [None, None, None, None, None, None, None, None],
+        #     [None, None, None, None, None, None, None, None],
+        #     [None, None, None, None, None, None, None, None],
+        #     [Pawn(self, "black", 0, 6), None, None, None, None, None, None, None],
+        #     [None, None, None, None, None, King(self, "white", 5, 0), None, None]]
 
 class Piece:
     game: Game
@@ -99,9 +172,16 @@ class Piece:
         color = "\033[97m" if team == "white" else "\033[30m"
         self.unicode = f"{color}{unicode}"
     
-    def get_valid_moves(self) -> List[Tuple[int,int]]:
+    def get_valid_moves(self, moves) -> List[Tuple[int,int]]:
         """Return a List of Tuples with valid Moves"""
-        pass
+        # remove self taking moves
+        valid_moves = []
+        for move in moves:
+            piece = self.game.get_piece_at(move[0], move[1])
+            if piece is not None and piece.team == self.team:
+                continue
+            valid_moves.append(move)
+        return valid_moves
 
     def get_game(self) -> Game:
         return self.game
@@ -136,7 +216,7 @@ class Pawn(Piece):
                 valid_moves.append((self.x - 1, self.y - 1))
             if self.x + 1 < 8 and self.y - 1 >= 0 and self.game.get_piece_at(self.x + 1, self.y - 1) is not None:
                 valid_moves.append((self.x + 1, self.y - 1))
-        return valid_moves
+        return super().get_valid_moves(valid_moves)
 
 class Rook(Piece):
     def __init__(self, game: Game, team: str, x: int, y: int) -> NoReturn:
@@ -162,7 +242,7 @@ class Rook(Piece):
             valid_moves.append((self.x, i))
             if self.game.get_piece_at(self.x, i) is not None:
                 break
-        return valid_moves
+        return super().get_valid_moves(valid_moves)
 
 class Knight(Piece):
     def __init__(self, game: Game, team: str, x: int, y: int) -> NoReturn:
@@ -177,7 +257,7 @@ class Knight(Piece):
         for move in moves:
             if 0 <= move[0] < 8 and 0 <= move[1] < 8:
                 valid_moves.append(move)
-        return valid_moves
+        return super().get_valid_moves(valid_moves)
 
 class Bishop(Piece):
     def __init__(self, game: Game, team: str, x: int, y: int) -> NoReturn:
@@ -214,7 +294,7 @@ class Bishop(Piece):
                     break
             else:
                 break
-        return valid_moves
+        return super().get_valid_moves(valid_moves)
 
 class Queen(Piece):
     def __init__(self, game: Game, team: str, x: int, y: int) -> NoReturn:
@@ -268,7 +348,7 @@ class Queen(Piece):
                     break
             else:
                 break
-        return valid_moves
+        return super().get_valid_moves(valid_moves)
 
 class King(Piece):
     def __init__(self, game: Game, team: str, x: int, y: int) -> NoReturn:
@@ -283,7 +363,22 @@ class King(Piece):
         for move in moves:
             if 0 <= move[0] < 8 and 0 <= move[1] < 8:
                 valid_moves.append(move)
-        return valid_moves
+        # add castling
+        if self.team == "white":
+            if self.game.white_castling_kingside:
+                if self.game.get_piece_at(5, 0) is None and self.game.get_piece_at(6, 0) is None:
+                    valid_moves.append((6, 0))
+            if self.game.white_castling_queenside:
+                if self.game.get_piece_at(1, 0) is None and self.game.get_piece_at(2, 0) is None and self.game.get_piece_at(3, 0) is None:
+                    valid_moves.append((2, 0))
+        else:
+            if self.game.black_castling_kingside:
+                if self.game.get_piece_at(5, 7) is None and self.game.get_piece_at(6, 7) is None:
+                    valid_moves.append((6, 7))
+            if self.game.black_castling_queenside:
+                if self.game.get_piece_at(1, 7) is None and self.game.get_piece_at(2, 7) is None and self.game.get_piece_at(3, 7) is None:
+                    valid_moves.append((2, 7))
+        return super().get_valid_moves(valid_moves)
 
 def get_key_press():
     # Set raw mode to read a single character without waiting for Enter
@@ -297,43 +392,39 @@ def get_key_press():
         # Reset terminal settings
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
 
+def get_coords() -> Tuple[int,int]:
+    x = y = None
+    while x is None or y is None:
+        move_input = get_key_press()
+        if re.match(r"^([A-H]|[a-h])$", move_input):
+            x = ord(move_input[0].lower()) - 97
+        elif re.match(r"^[1-8]$", move_input):
+            y = int(move_input) - 1
+    return (x, y)
+    
+
 game = Game()
 game.create_board()
 game.render_board()
 
 while True:
+    # Get the source and target coordinates from the user
+    while True:
+        source_x, source_y = get_coords()
+        piece = game.get_piece_at(source_x, source_y)
+        if piece is not None and piece.team == game.current_player and piece.get_valid_moves() != []:
+            break
+        else:
+            print("Invalid move. Please enter a valid move.")
 
-    source_x = None
-    source_y = None
-    target_x = None
-    target_y = None
-
-    while source_x is None or source_y is None:
-        move_input = get_key_press()
-        if re.match(r"^([A-H]|[a-h])$", move_input):
-            source_x = ord(move_input[0].lower()) - 97
-        elif re.match(r"^[1-8]$", move_input):
-            source_y = int(move_input) - 1
     game.render_board(game.get_piece_at(source_x, source_y).get_valid_moves())
     print(source_x, source_y)
-    while target_x is None or target_y is None:
-        move_input = get_key_press()
-        if re.match(r"^([A-H]|[a-h])$", move_input):
-            target_x = ord(move_input[0].lower()) - 97
-        elif re.match(r"^[1-8]$", move_input):
-            target_y = int(move_input) - 1
-    # Check if the move is valid and make the move
-    if source_x is not None and source_y is not None and target_x is not None and target_y is not None:
-        piece = game.get_piece_at(source_x, source_y)
-        if piece is None:
+    while True:
+        target_x, target_y = get_coords()
+        if (target_x, target_y) in game.get_piece_at(source_x, source_y).get_valid_moves():
+            break
+        else:
             print("Invalid move. Please enter a valid move.")
-            continue
 
-        valid_moves = piece.get_valid_moves()
-        if (target_x, target_y) not in valid_moves:
-            print("Invalid move. Please enter a valid move.")
-            continue
-
-        game.move_piece(source_x, source_y, target_x, target_y)
-    else:
-        print("Invalid move. Please enter a valid move.")
+    game.move_piece(source_x, source_y, target_x, target_y)
+    game.render_board()
