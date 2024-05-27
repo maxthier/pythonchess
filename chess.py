@@ -1,5 +1,9 @@
 from typing import List, Tuple, NoReturn
 import os
+import sys
+import tty
+import termios
+import re
 
 class Game:
     __board = None
@@ -22,7 +26,7 @@ class Game:
             print(f"{8-y} ", end="")
             for x in range(8):
                 piece = self.get_piece_at(x, (7-y))
-                if (x, y) in valid_moves:
+                if (x, (7-y)) in valid_moves:
                     print("\033[48;2;0;255;0m", end="")
                     pass
                 elif (x + y) % 2 == 0:
@@ -57,7 +61,7 @@ class Game:
             for x in range(8):
                 piece = self.get_piece_at(x, y)
                 if piece is not None:
-                    if piece._team == player:
+                    if piece.team == player:
                         if isinstance(piece, King):
                             king_position = (x, y)
                     else:
@@ -83,13 +87,13 @@ class Game:
              [Rook(self, "black", 0, 7), Knight(self, "black", 1, 7), Bishop(self, "black", 2, 7), Queen(self, "black", 3, 7), King(self, "black", 4, 7), Bishop(self, "black", 5, 7), Knight(self, "black", 6, 7), Rook(self, "black", 7, 7)]]
 
 class Piece:
-    __game = None
-    _team = ""
+    game: Game
+    team: str
     x = y = 0
     unicode = ''
     def __init__(self, game: Game, team: str, x: int, y: int, unicode: str) -> NoReturn:
-        self.__game = game
-        self._team = team
+        self.game = game
+        self.team = team
         self.x = x
         self.y = y
         color = "\033[97m" if team == "white" else "\033[30m"
@@ -99,35 +103,38 @@ class Piece:
         """Return a List of Tuples with valid Moves"""
         pass
 
+    def get_game(self) -> Game:
+        return self.game
+
 class Pawn(Piece):
     def __init__(self, game: Game, team: str, x: int, y: int) -> NoReturn:
-        Piece.__init__(self, game, team, x, y, "\u265F")
+        super().__init__(game, team, x, y, "\u265F")
     
     def get_valid_moves(self) -> List[Tuple[int,int]]:
         valid_moves = []
-        if self._team == "white":
+        if self.team == "white":
             # Move one forward
-            if self.y + 1 < 8 and self.__game.get_piece_at(self.x, self.y + 1) is None:
+            if self.y + 1 < 8 and self.game.get_piece_at(self.x, self.y + 1) is None:
                 valid_moves.append((self.x, self.y + 1))
             # Move two forward on start field
-            if self.y == 1 and self.__game.get_piece_at(self.x, self.y + 1) is None and self.__game.get_piece_at(self.x, self.y + 2) is None:
+            if self.y == 1 and self.game.get_piece_at(self.x, self.y + 1) is None and self.game.get_piece_at(self.x, self.y + 2) is None:
                 valid_moves.append((self.x, self.y + 2))
             # Take sideways
-            if self.x - 1 >= 0 and self.y + 1 < 8 and self.__game.get_piece_at(self.x - 1, self.y + 1) is not None:
+            if self.x - 1 >= 0 and self.y + 1 < 8 and self.game.get_piece_at(self.x - 1, self.y + 1) is not None:
                 valid_moves.append((self.x - 1, self.y + 1))
-            if self.x + 1 < 8 and self.y + 1 < 8 and self.__game.get_piece_at(self.x + 1, self.y + 1) is not None:
+            if self.x + 1 < 8 and self.y + 1 < 8 and self.game.get_piece_at(self.x + 1, self.y + 1) is not None:
                 valid_moves.append((self.x + 1, self.y + 1))
         else:
             # Move one forward
-            if self.y - 1 >= 0 and self.__game.get_piece_at(self.x, self.y - 1) is None:
+            if self.y - 1 >= 0 and self.game.get_piece_at(self.x, self.y - 1) is None:
                 valid_moves.append((self.x, self.y - 1))
             # Move two forward on start field
-            if self.y == 6 and self.__game.get_piece_at(self.x, self.y - 1) is None and self.__game.get_piece_at(self.x, self.y - 2) is None:
+            if self.y == 6 and self.game.get_piece_at(self.x, self.y - 1) is None and self.game.get_piece_at(self.x, self.y - 2) is None:
                 valid_moves.append((self.x, self.y - 2))
             # Take sideways
-            if self.x - 1 >= 0 and self.y - 1 >= 0 and self.__game.get_piece_at(self.x - 1, self.y - 1) is not None:
+            if self.x - 1 >= 0 and self.y - 1 >= 0 and self.game.get_piece_at(self.x - 1, self.y - 1) is not None:
                 valid_moves.append((self.x - 1, self.y - 1))
-            if self.x + 1 < 8 and self.y - 1 >= 0 and self.__game.get_piece_at(self.x + 1, self.y - 1) is not None:
+            if self.x + 1 < 8 and self.y - 1 >= 0 and self.game.get_piece_at(self.x + 1, self.y - 1) is not None:
                 valid_moves.append((self.x + 1, self.y - 1))
         return valid_moves
 
@@ -140,20 +147,20 @@ class Rook(Piece):
         # Horizontal moves
         for i in range(self.x + 1, 8):
             valid_moves.append((i, self.y))
-            if self.__game.get_piece_at(i, self.y) is not None:
+            if self.game.get_piece_at(i, self.y) is not None:
                 break
         for i in range(self.x - 1, -1, -1):
             valid_moves.append((i, self.y))
-            if self.__game.get_piece_at(i, self.y) is not None:
+            if self.game.get_piece_at(i, self.y) is not None:
                 break
         # Vertical moves
         for i in range(self.y + 1, 8):
             valid_moves.append((self.x, i))
-            if self.__game.get_piece_at(self.x, i) is not None:
+            if self.game.get_piece_at(self.x, i) is not None:
                 break
         for i in range(self.y - 1, -1, -1):
             valid_moves.append((self.x, i))
-            if self.__game.get_piece_at(self.x, i) is not None:
+            if self.game.get_piece_at(self.x, i) is not None:
                 break
         return valid_moves
 
@@ -182,28 +189,28 @@ class Bishop(Piece):
         for i in range(1, 8):
             if self.x + i < 8 and self.y + i < 8:
                 valid_moves.append((self.x + i, self.y + i))
-                if self.__game.get_piece_at(self.x + i, self.y + i) is not None:
+                if self.game.get_piece_at(self.x + i, self.y + i) is not None:
                     break
             else:
                 break
         for i in range(1, 8):
             if self.x + i < 8 and self.y - i >= 0:
                 valid_moves.append((self.x + i, self.y - i))
-                if self.__game.get_piece_at(self.x + i, self.y - i) is not None:
+                if self.game.get_piece_at(self.x + i, self.y - i) is not None:
                     break
             else:
                 break
         for i in range(1, 8):
             if self.x - i >= 0 and self.y + i < 8:
                 valid_moves.append((self.x - i, self.y + i))
-                if self.__game.get_piece_at(self.x - i, self.y + i) is not None:
+                if self.game.get_piece_at(self.x - i, self.y + i) is not None:
                     break
             else:
                 break
         for i in range(1, 8):
             if self.x - i >= 0 and self.y - i >= 0:
                 valid_moves.append((self.x - i, self.y - i))
-                if self.__game.get_piece_at(self.x - i, self.y - i) is not None:
+                if self.game.get_piece_at(self.x - i, self.y - i) is not None:
                     break
             else:
                 break
@@ -218,46 +225,46 @@ class Queen(Piece):
         # Horizontal and vertical moves
         for i in range(self.x + 1, 8):
             valid_moves.append((i, self.y))
-            if self.__game.get_piece_at(i, self.y) is not None:
+            if self.game.get_piece_at(i, self.y) is not None:
                 break
         for i in range(self.x - 1, -1, -1):
             valid_moves.append((i, self.y))
-            if self.__game.get_piece_at(i, self.y) is not None:
+            if self.game.get_piece_at(i, self.y) is not None:
                 break
         for i in range(self.y + 1, 8):
             valid_moves.append((self.x, i))
-            if self.__game.get_piece_at(self.x, i) is not None:
+            if self.game.get_piece_at(self.x, i) is not None:
                 break
         for i in range(self.y - 1, -1, -1):
             valid_moves.append((self.x, i))
-            if self.__game.get_piece_at(self.x, i) is not None:
+            if self.game.get_piece_at(self.x, i) is not None:
                 break
         # Diagonal moves
         for i in range(1, 8):
             if self.x + i < 8 and self.y + i < 8:
                 valid_moves.append((self.x + i, self.y + i))
-                if self.__game.get_piece_at(self.x + i, self.y + i) is not None:
+                if self.game.get_piece_at(self.x + i, self.y + i) is not None:
                     break
             else:
                 break
         for i in range(1, 8):
             if self.x + i < 8 and self.y - i >= 0:
                 valid_moves.append((self.x + i, self.y - i))
-                if self.__game.get_piece_at(self.x + i, self.y - i) is not None:
+                if self.game.get_piece_at(self.x + i, self.y - i) is not None:
                     break
             else:
                 break
         for i in range(1, 8):
             if self.x - i >= 0 and self.y + i < 8:
                 valid_moves.append((self.x - i, self.y + i))
-                if self.__game.get_piece_at(self.x - i, self.y + i) is not None:
+                if self.game.get_piece_at(self.x - i, self.y + i) is not None:
                     break
             else:
                 break
         for i in range(1, 8):
             if self.x - i >= 0 and self.y - i >= 0:
                 valid_moves.append((self.x - i, self.y - i))
-                if self.__game.get_piece_at(self.x - i, self.y - i) is not None:
+                if self.game.get_piece_at(self.x - i, self.y - i) is not None:
                     break
             else:
                 break
@@ -278,6 +285,55 @@ class King(Piece):
                 valid_moves.append(move)
         return valid_moves
 
+def get_key_press():
+    # Set raw mode to read a single character without waiting for Enter
+    old_settings = termios.tcgetattr(sys.stdin)
+    tty.setcbreak(sys.stdin.fileno())
+    try:
+        # Read a single character from the user
+        key_press = sys.stdin.read(1)
+        return key_press
+    finally:
+        # Reset terminal settings
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+
 game = Game()
 game.create_board()
-game.render_board(valid_moves=[(0, 1), (1, 1), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1), (7, 1)])
+game.render_board()
+
+while True:
+
+    source_x = None
+    source_y = None
+    target_x = None
+    target_y = None
+
+    while source_x is None or source_y is None:
+        move_input = get_key_press()
+        if re.match(r"^([A-H]|[a-h])$", move_input):
+            source_x = ord(move_input[0].lower()) - 97
+        elif re.match(r"^[1-8]$", move_input):
+            source_y = int(move_input) - 1
+    game.render_board(game.get_piece_at(source_x, source_y).get_valid_moves())
+    print(source_x, source_y)
+    while target_x is None or target_y is None:
+        move_input = get_key_press()
+        if re.match(r"^([A-H]|[a-h])$", move_input):
+            target_x = ord(move_input[0].lower()) - 97
+        elif re.match(r"^[1-8]$", move_input):
+            target_y = int(move_input) - 1
+    # Check if the move is valid and make the move
+    if source_x is not None and source_y is not None and target_x is not None and target_y is not None:
+        piece = game.get_piece_at(source_x, source_y)
+        if piece is None:
+            print("Invalid move. Please enter a valid move.")
+            continue
+
+        valid_moves = piece.get_valid_moves()
+        if (target_x, target_y) not in valid_moves:
+            print("Invalid move. Please enter a valid move.")
+            continue
+
+        game.move_piece(source_x, source_y, target_x, target_y)
+    else:
+        print("Invalid move. Please enter a valid move.")
