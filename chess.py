@@ -6,14 +6,14 @@ import termios
 import re
 
 class Game:
-    __board = None
-    current_player = None
+    __board: list = None
+    current_player: str = None
     black_castling_kingside = black_castling_queenside = white_castling_kingside = white_castling_queenside = True
     last_move = None
-    moves_since_last_significant = 0
-    game_over = False
-    result = None
-    end_message = None
+    moves_since_last_significant: int = 0
+    game_over: bool = False
+    result: str = None
+    end_message: str = None
 
     def __init__(self):
         # Initialize the chess game
@@ -133,7 +133,7 @@ class Game:
             self.last_move = (x, y, target_x, target_y)
             self.moves_since_last_significant += 1
 
-    def is_check(self, player: str) -> bool:
+    def is_check(self, player: str, no_recursion: bool = False) -> bool:
         """Check if the specified player is in check"""
         king_position = None
         opponent_pieces = []
@@ -151,7 +151,7 @@ class Game:
 
         # Check if any opponent's piece can attack the king
         for piece in opponent_pieces:
-            valid_moves = piece.get_valid_moves()
+            valid_moves = piece.get_valid_moves(no_recursion)
             if king_position in valid_moves:
                 return True
         
@@ -165,12 +165,21 @@ class Game:
         self.__board[target_y][target_x] = piece
         piece.x = target_x
         piece.y = target_y
-        is_check = self.is_check(self.current_player)
+        is_check = self.is_check(self.current_player, True)
         self.__board[y][x] = piece
         self.__board[target_y][target_x] = target_piece
         piece.x = x
         piece.y = y
         return is_check
+    
+    def has_valid_mvoes(self, player: str) -> bool:
+        """Check if the specified player has any valid moves"""
+        for y in range(8):
+            for x in range(8):
+                piece = self.get_piece_at(x, y)
+                if piece is not None and piece.team == player and piece.get_valid_moves() != []:
+                    return True
+        return False
 
     def create_board(self):
         """Create and return the initial chess board"""
@@ -186,7 +195,7 @@ class Game:
              [None, Pawn(self, "white", 1, 1), None, None, None, None, None, None],
              [None, None, None, None, None, None, None, None],
              [None, None, None, None, None, None, None, None],
-             [None, None, None, None, None, None, King(self, "black", 5, 4), None],
+             [None, None, None, None, None, None, King(self, "black", 6, 4), None],
              [None, None, None, None, None, None, None, None],
              [Pawn(self, "black", 0, 6), None, None, None, None, None, None, None],
              [None, None, None, None, None, None, None, None]]
@@ -204,7 +213,7 @@ class Piece:
         color = "\033[97m" if team == "white" else "\033[30m"
         self.unicode = f"{color}{unicode}"
     
-    def get_valid_moves(self, moves) -> List[Tuple[int,int]]:
+    def get_valid_moves(self, moves, no_recursion: bool = False) -> List[Tuple[int,int]]:
         """Return a List of Tuples with valid Moves"""
         # remove self taking moves
         valid_moves = []
@@ -213,11 +222,12 @@ class Piece:
             if piece is not None and piece.team == self.team:
                 continue
             valid_moves.append(move)
-        #cache = valid_moves
-        #valid_moves = []
-        #for move in cache:
-        #    if self.game.is_check_after_move(self.x, self.y, move[0], move[1]):
-        #        valid_moves.append(move)
+        if not no_recursion:
+            cache = valid_moves
+            valid_moves = []
+            for move in cache:
+                if not self.game.is_check_after_move(self.x, self.y, move[0], move[1]):
+                    valid_moves.append(move)
         return valid_moves
 
     def get_game(self) -> Game:
@@ -227,7 +237,7 @@ class Pawn(Piece):
     def __init__(self, game: Game, team: str, x: int, y: int) -> NoReturn:
         super().__init__(game, team, x, y, "\u265F")
     
-    def get_valid_moves(self) -> List[Tuple[int,int]]:
+    def get_valid_moves(self, no_recursion: bool = False) -> List[Tuple[int,int]]:
         valid_moves = []
         if self.team == "white":
             # Move one forward
@@ -265,13 +275,13 @@ class Pawn(Piece):
                     valid_moves.append((self.x - 1, self.y - 1))
                 if self.x + 1 < 8 and self.game.get_piece_at(self.x + 1, self.y) is not None and isinstance(self.game.get_piece_at(self.x + 1, self.y), Pawn) and self.game.last_move == (self.x + 1, self.y - 2, self.x + 1, self.y):
                     valid_moves.append((self.x + 1, self.y - 1))
-        return super().get_valid_moves(valid_moves)
+        return super().get_valid_moves(valid_moves, no_recursion)
 
 class Rook(Piece):
     def __init__(self, game: Game, team: str, x: int, y: int) -> NoReturn:
         Piece.__init__(self, game, team, x, y, "\u265C")
     
-    def get_valid_moves(self) -> List[Tuple[int,int]]:
+    def get_valid_moves(self, no_recursion: bool = False) -> List[Tuple[int,int]]:
         valid_moves = []
         # Horizontal moves
         for i in range(self.x + 1, 8):
@@ -291,13 +301,13 @@ class Rook(Piece):
             valid_moves.append((self.x, i))
             if self.game.get_piece_at(self.x, i) is not None:
                 break
-        return super().get_valid_moves(valid_moves)
+        return super().get_valid_moves(valid_moves, no_recursion)
 
 class Knight(Piece):
     def __init__(self, game: Game, team: str, x: int, y: int) -> NoReturn:
         Piece.__init__(self, game, team, x, y, "\u265E")
 
-    def get_valid_moves(self) -> List[Tuple[int,int]]:
+    def get_valid_moves(self, no_recursion: bool = False) -> List[Tuple[int,int]]:
         valid_moves = []
         moves = [(self.x + 2, self.y + 1), (self.x + 2, self.y - 1),
                     (self.x - 2, self.y + 1), (self.x - 2, self.y - 1),
@@ -306,13 +316,13 @@ class Knight(Piece):
         for move in moves:
             if 0 <= move[0] < 8 and 0 <= move[1] < 8:
                 valid_moves.append(move)
-        return super().get_valid_moves(valid_moves)
+        return super().get_valid_moves(valid_moves, no_recursion)
 
 class Bishop(Piece):
     def __init__(self, game: Game, team: str, x: int, y: int) -> NoReturn:
         Piece.__init__(self, game, team, x, y, "\u265D")
     
-    def get_valid_moves(self) -> List[Tuple[int,int]]:
+    def get_valid_moves(self, no_recursion: bool = False) -> List[Tuple[int,int]]:
         valid_moves = []
         # Diagonal moves
         for i in range(1, 8):
@@ -343,13 +353,13 @@ class Bishop(Piece):
                     break
             else:
                 break
-        return super().get_valid_moves(valid_moves)
+        return super().get_valid_moves(valid_moves, no_recursion)
 
 class Queen(Piece):
     def __init__(self, game: Game, team: str, x: int, y: int) -> NoReturn:
         Piece.__init__(self, game, team, x, y, "\u265B")
     
-    def get_valid_moves(self) -> List[Tuple[int,int]]:
+    def get_valid_moves(self, no_recursion: bool = False) -> List[Tuple[int,int]]:
         valid_moves = []
         # Horizontal and vertical moves
         for i in range(self.x + 1, 8):
@@ -397,13 +407,13 @@ class Queen(Piece):
                     break
             else:
                 break
-        return super().get_valid_moves(valid_moves)
+        return super().get_valid_moves(valid_moves, no_recursion)
 
 class King(Piece):
     def __init__(self, game: Game, team: str, x: int, y: int) -> NoReturn:
         Piece.__init__(self, game, team, x, y, "\u265A")
     
-    def get_valid_moves(self) -> List[Tuple[int,int]]:
+    def get_valid_moves(self, no_recursion: bool = False) -> List[Tuple[int,int]]:
         valid_moves = []
         moves = [(self.x + 1, self.y), (self.x - 1, self.y),
                     (self.x, self.y + 1), (self.x, self.y - 1),
@@ -427,7 +437,7 @@ class King(Piece):
             if self.game.black_castling_queenside:
                 if self.game.get_piece_at(1, 7) is None and self.game.get_piece_at(2, 7) is None and self.game.get_piece_at(3, 7) is None:
                     valid_moves.append((2, 7))
-        return super().get_valid_moves(valid_moves)
+        return super().get_valid_moves(valid_moves, no_recursion)
 
 def get_key_press():
     # Set raw mode to read a single character without waiting for Enter
@@ -487,6 +497,19 @@ def game_loop() -> Tuple[str, str]:
 
         game.move_piece(source_x, source_y, target_x, target_y)
         game.render_board()
+        
+        if not game.has_valid_mvoes(game.current_player):
+            if game.is_check(game.current_player):
+                game.game_over = True
+                game.result = "checkmate"
+                game.end_message = f"Checkmate! {game.current_player} wins!"
+                return (game.result, game.end_message)
+            else:
+                game.game_over = True
+                game.result = "remis"
+                game.end_message = "Game ended in a remis due to stalemate."
+                return (game.result, game.end_message)
+
         if game.moves_since_last_significant >= 150:
             game.game_over = True
             game.result = "remis"
