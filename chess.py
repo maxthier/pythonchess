@@ -182,14 +182,14 @@ class Game:
              [None, None, None, None, None, None, None, None],
              [Pawn(self, "black", 0, 6), Pawn(self, "black", 1, 6), Pawn(self, "black", 2, 6), Pawn(self, "black", 3, 6), Pawn(self, "black", 4, 6), Pawn(self, "black", 5, 6), Pawn(self, "black", 6, 6), Pawn(self, "black", 7, 6)],
              [Rook(self, "black", 0, 7), Knight(self, "black", 1, 7), Bishop(self, "black", 2, 7), Queen(self, "black", 3, 7), King(self, "black", 4, 7), Bishop(self, "black", 5, 7), Knight(self, "black", 6, 7), Rook(self, "black", 7, 7)]]
-        #self.__board = [[Rook(self, "white", 0, 0), None, None, None, King(self, "white", 4, 0), None, None, Rook(self, "white", 7, 0)],
-        #     [None, Pawn(self, "white", 1, 1), None, None, None, None, None, None],
-        #     [None, None, None, None, None, None, None, None],
-        #     [None, None, None, None, None, None, None, None],
-        #     [None, None, None, None, None, None, King(self, "black", 5, 4), None],
-        #     [None, None, None, None, None, None, None, None],
-        #     [Pawn(self, "black", 0, 6), None, None, None, None, None, None, None],
-        #     [None, None, None, None, None, None, None, None]]
+        self.__board = [[Rook(self, "white", 0, 0), None, None, None, King(self, "white", 4, 0), None, None, Rook(self, "white", 7, 0)],
+             [None, Pawn(self, "white", 1, 1), None, None, None, None, None, None],
+             [None, None, None, None, None, None, None, None],
+             [None, None, None, None, None, None, None, None],
+             [None, None, None, None, None, None, King(self, "black", 5, 4), None],
+             [None, None, None, None, None, None, None, None],
+             [Pawn(self, "black", 0, 6), None, None, None, None, None, None, None],
+             [None, None, None, None, None, None, None, None]]
 
 class Piece:
     game: Game
