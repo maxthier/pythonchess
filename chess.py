@@ -577,7 +577,19 @@ def export_game(game: Game) -> str:
                         str_array[y][x] = 'k' if piece.team == "black" else 'K'
             else:
                 str_array[y][x] = 'e'
-    return str(str_array)
+    return f"{game.white_castling_kingside};{game.white_castling_queenside};{game.black_castling_kingside};{game.black_castling_queenside};{game.current_player};{game.moves_since_last_significant};{str(str_array)}"
+
+def import_game(data: str) -> Game:
+    game = Game()
+    data = data.split(";")
+    print(data)
+    game.white_castling_kingside = True if data[0] == "True" else False
+    game.white_castling_queenside = True if data[1] == "True" else False
+    game.black_castling_kingside = True if data[2] == "True" else False
+    game.black_castling_queenside = True if data[3] == "True" else False
+    game.current_player = data[4]
+    game.moves_since_last_significant = int(data[5])
+    board = ast.literal_eval(data[6])
 
 db = sqlite3.connect("chess.db")
 db_setup(db)
@@ -608,8 +620,3 @@ db_setup(db)
 #            break
 #db.close()
 #print("Thank you for playing!")
-
-game = Game()
-game.create_board()
-print(export_game(game))
-rook = Rook(game, "white", 0, 0)
