@@ -13,12 +13,13 @@ class Game:
     black_castling_kingside = black_castling_queenside = white_castling_kingside = white_castling_queenside = True
     last_move = None
     moves_since_last_significant: int = 0
+    last_positions = [] # this is used to check for threefold repetition
     game_over: bool = False
     result: str = None
     end_message: str = None
 
-    def __init__(self):
-        # Initialize the chess game
+    def __init__(self) -> NoReturn:
+        """Initialize the chess game"""
         self.board = self.create_board()
         self.current_player = "white"
 
@@ -26,9 +27,8 @@ class Game:
         """Return the piece at the specified x and y coordinates"""
         return self.board[y][x]
     
-    # Render the board in the terminal
     def render_board(self, valid_moves: List[Tuple[int,int]] = []):
-        """Render the board in the terminal with a checkboard pattern"""
+        """Render the board in the terminal"""
         os.system('clear')  # Clear the terminal output
         print("It's {}'s turn.".format(self.current_player))
         print("  A B C D E F G H")
@@ -36,10 +36,10 @@ class Game:
             print(f"{8-y} ", end="")
             for x in range(8):
                 piece = self.get_piece_at(x, (7-y))
-                if (x, (7-y)) in valid_moves:
+                if (x, (7-y)) in valid_moves: # Highlight valid moves
                     print("\033[48;2;0;255;0m", end="")
                     pass
-                elif (x + y) % 2 == 1:
+                elif (x + y) % 2 == 1: # Alternate the background color
                     print("\033[48;2;215;135;0m", end="")
                     pass
                 else:
@@ -49,7 +49,7 @@ class Game:
                     print(f"{piece.unicode} ", end="")
                 else:
                     print("  ", end="")
-                print("\033[m", end="")
+                print("\033[m", end="") # Reset the background color
             print(f" {8-y}")
         print("  A B C D E F G H")
         if self.moves_since_last_significant >= 100:
@@ -125,6 +125,7 @@ class Game:
                 self.black_castling_kingside = False
             if isinstance(piece, Pawn) or self.get_piece_at(target_x, target_y) is not None:
                 self.moves_since_last_significant = 0
+                self.last_positions = []
 
         self.board[target_y][target_x] = piece
         piece.x = target_x
@@ -134,6 +135,7 @@ class Game:
             self.render_board()
             self.last_move = (x, y, target_x, target_y)
             self.moves_since_last_significant += 1
+            self.last_positions.append(board_to_str(self.board))
 
     def is_check(self, player: str, no_recursion: bool = False) -> bool:
         """Check if the specified player is in check"""
@@ -469,9 +471,10 @@ def get_coords(game: Game) -> Tuple[int,int]:
 
     return (x, y)
     
-def game_loop() -> Tuple[Tuple[str, str], str]:
-    game = Game()
-    game.create_board()
+def game_loop(game: Game) -> Tuple[Tuple[str, str], str]:
+    if game.board is None:
+        game.create_board()
+    game.last_positions.append(board_to_str(game.board))
     game.render_board()
 
     while True:
@@ -518,6 +521,13 @@ def game_loop() -> Tuple[Tuple[str, str], str]:
             game.result = "remis"
             game.end_message = "Game ended in a remis due to 75 moves rule."
             return ((game.result, None), game.end_message)
+        
+        # Check if this position has repeated three times
+        if game.last_positions.count(board_to_str(game.board)) >= 3:
+            game.game_over = True
+            game.result = "remis"
+            game.end_message = "Game ended in a remis due to threefold repetition."
+            return ((game.result, None), game.end_message)
 
 def db_setup(db: sqlite3.Connection):
     cursor = db.cursor()
@@ -555,8 +565,7 @@ def db_get_statistics(db: sqlite3.Connection, name: str):
         print("No player with that name found.")
         return
 
-def export_game(game: Game) -> str:
-    board = game.board
+def board_to_str(board: List[List[Piece]]) -> str:
     str_array = [[None for _ in range(8)] for _ in range(8)]
     for y in range(8):
         for x in range(8):
@@ -577,19 +586,44 @@ def export_game(game: Game) -> str:
                         str_array[y][x] = 'k' if piece.team == "black" else 'K'
             else:
                 str_array[y][x] = 'e'
+    return str(str_array)
+
+def export_game(game: Game) -> str:
+    board = game.board
+    str_array = board_to_str(board)
     return f"{game.white_castling_kingside};{game.white_castling_queenside};{game.black_castling_kingside};{game.black_castling_queenside};{game.current_player};{game.moves_since_last_significant};{str(str_array)}"
 
 def import_game(data: str) -> Game:
     game = Game()
     data = data.split(";")
-    print(data)
     game.white_castling_kingside = True if data[0] == "True" else False
     game.white_castling_queenside = True if data[1] == "True" else False
     game.black_castling_kingside = True if data[2] == "True" else False
     game.black_castling_queenside = True if data[3] == "True" else False
     game.current_player = data[4]
     game.moves_since_last_significant = int(data[5])
-    board = ast.literal_eval(data[6])
+    game.board = ast.literal_eval(data[6])
+    for y in range(8):
+        for x in range(8):
+            piece = game.board[y][x]
+            if piece is not None:
+                team = "black" if piece.islower() else "white"
+                match piece.lower():
+                    case 'p':
+                        game.board[y][x] = Pawn(game, team, x, y)
+                    case 'r':
+                        game.board[y][x] = Rook(game, team, x, y)
+                    case 'n':
+                        game.board[y][x] = Knight(game, team, x, y)
+                    case 'b':
+                        game.board[y][x] = Bishop(game, team, x, y)
+                    case 'q':
+                        game.board[y][x] = Queen(game, team, x, y)
+                    case 'k':
+                        game.board[y][x] = King(game, team, x, y)
+                    case 'e':
+                        game.board[y][x] = None
+    return game
 
 db = sqlite3.connect("chess.db")
 db_setup(db)
@@ -605,18 +639,37 @@ while True:
     print(" q. Quit")
     match get_key_press():
         case "1":
+            game = None
             white = input("Enter the name of the white player: ")
             black = input("Enter the name of the black player: ")
             db_check_player(db, white)
             db_check_player(db, black)
+            # ask if the player wants to continue a game if a chess.game exists
+            if os.path.exists("chess.game"):
+                print("An ongoing game was found. Do you want to continue it? (y/n)")
+                if get_key_press() == "y":
+                    with open("chess.game", "r") as file:
+                        game = import_game(file.read())
+                else:
+                    try:
+                        os.remove("chess.game")
+                    except FileNotFoundError:
+                        pass
+                    game = Game()
+            else:
+                game = Game()
             try:
-                result, message = game_loop()
+                result, message = game_loop(game)
+                # delete chess.game if exists
+                try:
+                    os.remove("chess.game")
+                except FileNotFoundError:
+                    pass
                 print(message)
                 db_update_player(db, white, black, result)
             except KeyboardInterrupt:
                 # write the game to a file
-                filename = input("Enter the filename to save the game: ")
-                with open(filename, "w") as file:
+                with open("chess.game", "w") as file:
                     file.write(export_game(game))
                 print("Game saved successfully.")
                 print("Game interrupted.")
