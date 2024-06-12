@@ -594,29 +594,37 @@ def import_game(data: str) -> Game:
 db = sqlite3.connect("chess.db")
 db_setup(db)
 
-#os.system("clear")
-#print("#############################################")
-#print("# Welcome to Chess!                         #")
-#print("#############################################")
-#while True:
-#    print("What do you want to do?")
-#    print(" 1. Play a game")
-#    print(" 2. Show statistics")
-#    print(" q. Quit")
-#    match get_key_press():
-#        case "1":
-#            white = input("Enter the name of the white player: ")
-#            black = input("Enter the name of the black player: ")
-#            db_check_player(db, white)
-#            db_check_player(db, black)
-#            result, message = game_loop()
-#            print(message)
-#            db_update_player(db, white, black, result)
-#        case "2":
-#            name = input("Enter the name of the player you want to see the statistics for: ")
-#            db_get_statistics(db, name)
-#            pass
-#        case "q":
-#            break
-#db.close()
-#print("Thank you for playing!")
+os.system("clear")
+print("#############################################")
+print("# Welcome to Chess!                         #")
+print("#############################################")
+while True:
+    print("What do you want to do?")
+    print(" 1. Play a game")
+    print(" 2. Show statistics")
+    print(" q. Quit")
+    match get_key_press():
+        case "1":
+            white = input("Enter the name of the white player: ")
+            black = input("Enter the name of the black player: ")
+            db_check_player(db, white)
+            db_check_player(db, black)
+            try:
+                result, message = game_loop()
+                print(message)
+                db_update_player(db, white, black, result)
+            except KeyboardInterrupt:
+                # write the game to a file
+                filename = input("Enter the filename to save the game: ")
+                with open(filename, "w") as file:
+                    file.write(export_game(game))
+                print("Game saved successfully.")
+                print("Game interrupted.")
+        case "2":
+            name = input("Enter the name of the player you want to see the statistics for: ")
+            db_get_statistics(db, name)
+            pass
+        case "q":
+            break
+db.close()
+print("Thank you for playing!")
