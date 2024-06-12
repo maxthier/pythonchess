@@ -52,7 +52,7 @@ class Game:
                 print("\033[m", end="") # Reset the background color
             print(f" {8-y}")
         print("  A B C D E F G H")
-        if self.moves_since_last_significant >= 100:
+        if self.moves_since_last_significant >= 100: # give the player the option to end the game in a remis due to 50 moves rule
             print("50 or more unsignificant moves passed. Press (r) for remis or continue playing.")
     
     def move_piece(self, x: int, y: int, target_x: int, target_y: int, sim: bool = False):
@@ -113,8 +113,8 @@ class Game:
                     self.board[7][3] = rook
                     rook.x = 3
                     rook.y = 7
-        # dissalow castling if rook gets moved or taken
         if not sim:
+            # dissalow castling if rook gets moved or taken
             if (piece.x == 0 and piece.y == 0) or (target_x == 0 and target_y == 0):
                 self.white_castling_queenside = False
             elif (piece.x == 7 and piece.y == 0) or (target_x == 7 and target_y == 0):
@@ -123,6 +123,7 @@ class Game:
                 self.black_castling_queenside = False
             elif (piece.x == 7 and piece.y == 7) or (target_x == 7 and target_y == 7):
                 self.black_castling_kingside = False
+            # reset moves_since_last_significant and last_positions if a irreversible move is made
             if isinstance(piece, Pawn) or self.get_piece_at(target_x, target_y) is not None:
                 self.moves_since_last_significant = 0
                 self.last_positions = []
@@ -133,9 +134,9 @@ class Game:
         if not sim:
             self.current_player = "black" if self.current_player == "white" else "white"
             self.render_board()
-            self.last_move = (x, y, target_x, target_y)
-            self.moves_since_last_significant += 1
-            self.last_positions.append(board_to_str(self.board))
+            self.last_move = (x, y, target_x, target_y) # track last move for en passant
+            self.moves_since_last_significant += 1 # track moves since last significant move for 50 & 75 moves rule
+            self.last_positions.append(board_to_str(self.board)) # track last positions for threefold repetition
 
     def is_check(self, player: str, no_recursion: bool = False) -> bool:
         """Check if the specified player is in check"""
@@ -163,13 +164,16 @@ class Game:
 
     def is_check_after_move(self, x: int, y: int, target_x: int, target_y: int) -> bool:
         """Check if the current player is in check after a move"""
+        # Simulate the move
         piece = self.get_piece_at(x, y)
         target_piece = self.get_piece_at(target_x, target_y)
         self.board[y][x] = None
         self.board[target_y][target_x] = piece
         piece.x = target_x
         piece.y = target_y
+        # Check if the current player is in check
         is_check = self.is_check(self.current_player, True)
+        # Revert the move
         self.board[y][x] = piece
         self.board[target_y][target_x] = target_piece
         piece.x = x
@@ -182,7 +186,7 @@ class Game:
             for x in range(8):
                 piece = self.get_piece_at(x, y)
                 if piece is not None and piece.team == player and piece.get_valid_moves() != []:
-                    return True
+                    return True # return True as soon as a valid move is found
         return False
 
     def create_board(self):
@@ -210,6 +214,7 @@ class Piece:
     x = y = 0
     unicode = ''
     def __init__(self, game: Game, team: str, x: int, y: int, unicode: str) -> NoReturn:
+        """Initialize the piece with the specified team, x and y coordinates, and unicode character"""
         self.game = game
         self.team = team
         self.x = x
@@ -226,7 +231,8 @@ class Piece:
             if piece is not None and piece.team == self.team:
                 continue
             valid_moves.append(move)
-        if not no_recursion:
+        if not no_recursion: # avoid infinite recursion
+            # remove moves that would put the king in check
             cache = valid_moves
             valid_moves = []
             for move in cache:
@@ -234,14 +240,13 @@ class Piece:
                     valid_moves.append(move)
         return valid_moves
 
-    def get_game(self) -> Game:
-        return self.game
-
 class Pawn(Piece):
     def __init__(self, game: Game, team: str, x: int, y: int) -> NoReturn:
+        """Initialize the pawn with the specified team, x and y coordinates, and unicode character"""
         super().__init__(game, team, x, y, "\u265F")
     
     def get_valid_moves(self, no_recursion: bool = False) -> List[Tuple[int,int]]:
+        """Return a List of Tuples with valid Moves"""
         valid_moves = []
         if self.team == "white":
             # Move one forward
@@ -283,9 +288,11 @@ class Pawn(Piece):
 
 class Rook(Piece):
     def __init__(self, game: Game, team: str, x: int, y: int) -> NoReturn:
+        """Initialize the rook with the specified team, x and y coordinates, and unicode character"""
         Piece.__init__(self, game, team, x, y, "\u265C")
     
     def get_valid_moves(self, no_recursion: bool = False) -> List[Tuple[int,int]]:
+        """Return a List of Tuples with valid Moves"""
         valid_moves = []
         # Horizontal moves
         for i in range(self.x + 1, 8):
@@ -309,24 +316,29 @@ class Rook(Piece):
 
 class Knight(Piece):
     def __init__(self, game: Game, team: str, x: int, y: int) -> NoReturn:
+        """Initialize the knight with the specified team, x and y coordinates, and unicode character"""
         Piece.__init__(self, game, team, x, y, "\u265E")
 
     def get_valid_moves(self, no_recursion: bool = False) -> List[Tuple[int,int]]:
+        """Return a List of Tuples with valid Moves"""
         valid_moves = []
         moves = [(self.x + 2, self.y + 1), (self.x + 2, self.y - 1),
                     (self.x - 2, self.y + 1), (self.x - 2, self.y - 1),
                     (self.x + 1, self.y + 2), (self.x + 1, self.y - 2),
                     (self.x - 1, self.y + 2), (self.x - 1, self.y - 2)]
         for move in moves:
+            # only add moves that are on the board
             if 0 <= move[0] < 8 and 0 <= move[1] < 8:
                 valid_moves.append(move)
         return super().get_valid_moves(valid_moves, no_recursion)
 
 class Bishop(Piece):
     def __init__(self, game: Game, team: str, x: int, y: int) -> NoReturn:
+        """Initialize the bishop with the specified team, x and y coordinates, and unicode character"""
         Piece.__init__(self, game, team, x, y, "\u265D")
     
     def get_valid_moves(self, no_recursion: bool = False) -> List[Tuple[int,int]]:
+        """Return a List of Tuples with valid Moves"""
         valid_moves = []
         # Diagonal moves
         for i in range(1, 8):
@@ -361,9 +373,11 @@ class Bishop(Piece):
 
 class Queen(Piece):
     def __init__(self, game: Game, team: str, x: int, y: int) -> NoReturn:
+        """Initialize the queen with the specified team, x and y coordinates, and unicode character"""
         Piece.__init__(self, game, team, x, y, "\u265B")
     
     def get_valid_moves(self, no_recursion: bool = False) -> List[Tuple[int,int]]:
+        """Return a List of Tuples with valid Moves"""
         valid_moves = []
         # Horizontal and vertical moves
         for i in range(self.x + 1, 8):
@@ -415,15 +429,18 @@ class Queen(Piece):
 
 class King(Piece):
     def __init__(self, game: Game, team: str, x: int, y: int) -> NoReturn:
+        """Initialize the king with the specified team, x and y coordinates, and unicode character"""
         Piece.__init__(self, game, team, x, y, "\u265A")
     
     def get_valid_moves(self, no_recursion: bool = False) -> List[Tuple[int,int]]:
+        """Return a List of Tuples with valid Moves"""
         valid_moves = []
         moves = [(self.x + 1, self.y), (self.x - 1, self.y),
                     (self.x, self.y + 1), (self.x, self.y - 1),
                     (self.x + 1, self.y + 1), (self.x + 1, self.y - 1),
                     (self.x - 1, self.y + 1), (self.x - 1, self.y - 1)]
         for move in moves:
+            # only add moves that are on the board
             if 0 <= move[0] < 8 and 0 <= move[1] < 8:
                 valid_moves.append(move)
         # castling
@@ -444,6 +461,7 @@ class King(Piece):
         return super().get_valid_moves(valid_moves, no_recursion)
 
 def get_key_press():
+    """Get a single key press from the user without the need to press Enter"""
     # Set raw mode to read a single character without waiting for Enter
     old_settings = termios.tcgetattr(sys.stdin)
     tty.setcbreak(sys.stdin.fileno())
@@ -456,14 +474,15 @@ def get_key_press():
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
 
 def get_coords(game: Game) -> Tuple[int,int]:
+    """Get a pair of coordinates from the user"""
     x = y = None
     while x is None or y is None:
         move_input = get_key_press()
-        if re.match(r"^([A-H]|[a-h])$", move_input):
+        if re.match(r"^([A-H]|[a-h])$", move_input): # Check if the input is a valid letter
             x = ord(move_input[0].lower()) - 97
-        elif re.match(r"^[1-8]$", move_input):
+        elif re.match(r"^[1-8]$", move_input): # Check if the input is a valid number
             y = int(move_input) - 1
-        elif move_input == "r" and game.moves_since_last_significant >= 100:
+        elif move_input == "r" and game.moves_since_last_significant >= 100: # Check if the player wants to end the game in a remis due to 50 moves rule
             game.game_over = True
             game.result = "remis"
             game.end_message = "Game ended in a remis due to 50 moves rule."
@@ -472,30 +491,31 @@ def get_coords(game: Game) -> Tuple[int,int]:
     return (x, y)
     
 def game_loop(game: Game) -> Tuple[Tuple[str, str], str]:
+    """Run the main game loop"""
     if game.board is None:
         game.create_board()
     game.last_positions.append(board_to_str(game.board))
     game.render_board()
 
     while True:
-        # Get the source and target coordinates from the user
+        # Get the source coordinates from the user
         while True:
             source_x, source_y = get_coords(game)
             if game.game_over:
                 return ((game.result, None), game.end_message)
             piece = game.get_piece_at(source_x, source_y)
-            if piece is not None and piece.team == game.current_player and piece.get_valid_moves() != []:
+            if piece is not None and piece.team == game.current_player and piece.get_valid_moves() != []: # Check if the piece belongs to the current player and has at least one valid move
                 break
             else:
                 print("Invalid move. Please enter a valid move.")
 
-        game.render_board(game.get_piece_at(source_x, source_y).get_valid_moves())
-        print(source_x, source_y)
+        game.render_board(game.get_piece_at(source_x, source_y).get_valid_moves()) # Highlight valid moves
+        # Get the target coordinates from the user
         while True:
             target_x, target_y = get_coords(game)
             if game.game_over:
                 return ((game.result, None), game.end_message)
-            if (target_x, target_y) in game.get_piece_at(source_x, source_y).get_valid_moves():
+            if (target_x, target_y) in game.get_piece_at(source_x, source_y).get_valid_moves(): # Check if the target coordinates are a valid move
                 break
             else:
                 print("Invalid move. Please enter a valid move.")
@@ -504,18 +524,19 @@ def game_loop(game: Game) -> Tuple[Tuple[str, str], str]:
         game.render_board()
         
         if not game.has_valid_mvoes(game.current_player):
-            if game.is_check(game.current_player):
+            if game.is_check(game.current_player): # If the player has no valid moves and is in check, it's checkmate
                 game.game_over = True
                 game.result = "checkmate"
                 winner = "white" if game.current_player == "black" else "black"
                 game.end_message = f"Checkmate! {winner} wins!"
                 return ((game.result, winner), game.end_message)
-            else:
+            else: # If the player has no valid moves and is not in check, it's a stalemate
                 game.game_over = True
                 game.result = "remis"
                 game.end_message = "Game ended in a remis due to stalemate."
                 return ((game.result, None), game.end_message)
 
+        # Check if it is a remis because of the 75 moves rule
         if game.moves_since_last_significant >= 150:
             game.game_over = True
             game.result = "remis"
@@ -530,6 +551,7 @@ def game_loop(game: Game) -> Tuple[Tuple[str, str], str]:
             return ((game.result, None), game.end_message)
 
 def db_setup(db: sqlite3.Connection):
+    """Create the player table in the database if it doesn't exist"""
     cursor = db.cursor()
     cursor.execute("CREATE TABLE IF NOT EXISTS player (id INTEGER PRIMARY KEY, name TEXT, wins INTEGER, loses INTEGER, games INTEGER)")
     db.commit()
@@ -566,6 +588,7 @@ def db_get_statistics(db: sqlite3.Connection, name: str):
         return
 
 def board_to_str(board: List[List[Piece]]) -> str:
+    """Convert the board to a string representation"""
     str_array = [[None for _ in range(8)] for _ in range(8)]
     for y in range(8):
         for x in range(8):
@@ -589,11 +612,13 @@ def board_to_str(board: List[List[Piece]]) -> str:
     return str(str_array)
 
 def export_game(game: Game) -> str:
+    """Export the game to a string representation"""
     board = game.board
     str_array = board_to_str(board)
     return f"{game.white_castling_kingside};{game.white_castling_queenside};{game.black_castling_kingside};{game.black_castling_queenside};{game.current_player};{game.moves_since_last_significant};{str(str_array)}"
 
 def import_game(data: str) -> Game:
+    """Import the game from a string representation"""
     game = Game()
     data = data.split(";")
     game.white_castling_kingside = True if data[0] == "True" else False
@@ -603,6 +628,7 @@ def import_game(data: str) -> Game:
     game.current_player = data[4]
     game.moves_since_last_significant = int(data[5])
     game.board = ast.literal_eval(data[6])
+    # Translate the string representation to instances of the Pieces
     for y in range(8):
         for x in range(8):
             piece = game.board[y][x]
@@ -633,6 +659,7 @@ print("#############################################")
 print("# Welcome to Chess!                         #")
 print("#############################################")
 while True:
+    # Ask the user what they want to do
     print("What do you want to do?")
     print(" 1. Play a game")
     print(" 2. Show statistics")
@@ -648,9 +675,11 @@ while True:
             if os.path.exists("chess.game"):
                 print("An ongoing game was found. Do you want to continue it? (y/n)")
                 if get_key_press() == "y":
+                    # load the game from the file
                     with open("chess.game", "r") as file:
                         game = import_game(file.read())
                 else:
+                    # delete a started game if one exists
                     try:
                         os.remove("chess.game")
                     except FileNotFoundError:
@@ -658,9 +687,10 @@ while True:
                     game = Game()
             else:
                 game = Game()
+            # try catch block to handle ctrl+c interrupts
             try:
                 result, message = game_loop(game)
-                # delete chess.game if exists
+                # delete chess.game if exists after game ends
                 try:
                     os.remove("chess.game")
                 except FileNotFoundError:
@@ -668,11 +698,10 @@ while True:
                 print(message)
                 db_update_player(db, white, black, result)
             except KeyboardInterrupt:
-                # write the game to a file
+                # write the game to a file on interrupt
                 with open("chess.game", "w") as file:
                     file.write(export_game(game))
                 print("Game saved successfully.")
-                print("Game interrupted.")
         case "2":
             name = input("Enter the name of the player you want to see the statistics for: ")
             db_get_statistics(db, name)
